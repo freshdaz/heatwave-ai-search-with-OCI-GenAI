@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Semantic Search · MySQL HeatWave</title>
+    <style>
+      :root {
+        color: #172033;
+        background: #f5f7fa;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      .shell { width: min(100% - 2rem, 960px); margin: 0 auto; }
+      header { background: #0d1b2a; border-bottom: 3px solid #2f80ed; color: white; padding: 1.4rem 0; }
+      .brand { display: flex; align-items: center; gap: .8rem; }
+      .mark { display: grid; width: 2.3rem; height: 2.3rem; place-items: center; border-radius: .55rem; background: #2f80ed; font-weight: 800; }
+      h1 { margin: 0; font-size: 1.1rem; letter-spacing: -.01em; }
+      .brand p { margin: .12rem 0 0; color: #c8d3e1; font-size: .85rem; }
+      main { padding: 2.5rem 0 4rem; }
+      .search-panel, .result { background: #fff; border: 1px solid #dce3ed; border-radius: .75rem; box-shadow: 0 3px 12px rgba(24, 39, 75, .04); }
+      .search-panel { padding: 1.5rem; }
+      h2 { margin: 0; font-size: 1.15rem; }
+      .intro { color: #58657a; margin: .4rem 0 1.3rem; font-size: .94rem; }
+      label { display: block; color: #344054; font-size: .87rem; font-weight: 650; margin: 1rem 0 .4rem; }
+      input, select { width: 100%; border: 1px solid #bac6d5; border-radius: .45rem; color: #172033; font: inherit; padding: .7rem .75rem; }
+      input:focus, select:focus { border-color: #2f80ed; box-shadow: 0 0 0 3px rgba(47, 128, 237, .15); outline: 0; }
+      .form-row { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: .75rem; }
+      .form-row label { margin-bottom: .4rem; }
+      button { border: 0; border-radius: .45rem; background: #1769c2; color: white; cursor: pointer; font: inherit; font-weight: 650; padding: .73rem 1.15rem; white-space: nowrap; }
+      button:hover { background: #115aa8; }
+      .notice { border-radius: .5rem; margin-top: 1rem; padding: .8rem 1rem; }
+      .error { background: #fff1f0; border: 1px solid #f3c3be; color: #9d2720; }
+      .results-header { display: flex; align-items: baseline; justify-content: space-between; margin: 2rem 0 .75rem; }
+      .results-header p { color: #667085; font-size: .88rem; margin: 0; }
+      .results { display: grid; gap: .75rem; }
+      .result { padding: 1.25rem 1.35rem; }
+      .result-top { display: flex; align-items: start; gap: 1rem; justify-content: space-between; }
+      .result h3 { font-size: 1.05rem; line-height: 1.35; margin: 0; }
+      a { color: #135dae; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .excerpt { color: #4d5b70; line-height: 1.55; margin: .65rem 0 0; }
+      .score { background: #edf5ff; border: 1px solid #cbe0fb; border-radius: .35rem; color: #175a9f; font-size: .78rem; font-variant-numeric: tabular-nums; font-weight: 700; padding: .35rem .5rem; white-space: nowrap; }
+      .score.keyword { background: #fff5e8; border-color: #f5d0a3; color: #9a4b08; }
+      .score.hybrid { background: #f3edff; border-color: #d9c8ff; color: #6541a3; }
+      .score span { color: #4d6a89; display: block; font-size: .68rem; font-weight: 600; margin-bottom: .1rem; text-transform: uppercase; }
+      .empty { color: #58657a; text-align: center; padding: 2.5rem 1rem; }
+      @media (max-width: 620px) {
+        .form-row { grid-template-columns: 1fr; }
+        .form-row button { width: 100%; }
+        .result-top { flex-direction: column-reverse; gap: .65rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="shell brand">
+        <div class="mark">S</div>
+        <div>
+          <h1>Semantic Search</h1>
+          <p>OCI Generative AI + MySQL HeatWave vectors</p>
+        </div>
+      </div>
+    </header>
+    <main class="shell">
+      <section class="search-panel" aria-labelledby="search-title">
+        <h2 id="search-title">Find relevant articles</h2>
+        <p class="intro">Search by a sentence, question, or keywords.</p>
+        <form method="post">
+          <label for="query">Search query</label>
+          <div class="form-row">
+            <input id="query" name="query" value="{{ query }}" placeholder="e.g. Generative artificial intelligence" maxlength="2000" required autofocus>
+            <button type="submit">Search</button>
+          </div>
+          <label for="model_id">OCI embedding model</label>
+          <input id="model_id" name="model_id" value="{{ model_id }}" maxlength="512" required>
+          <label for="method">Search method</label>
+          <select id="method" name="method">
+            <option value="semantic" {% if method == 'semantic' %}selected{% endif %}>Semantic AI</option>
+            <option value="keyword" {% if method == 'keyword' %}selected{% endif %}>Keyword</option>
+            <option value="hybrid" {% if method == 'hybrid' %}selected{% endif %}>Hybrid</option>
+          </select>
+        </form>
+        {% if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+      </section>
+
+      {% if searched and results %}
+        <div class="results-header">
+          <h2>Results</h2>
+          <p>{{ results|length }} matches</p>
+        </div>
+        <section class="results" aria-label="Search results">
+          {% for result in results %}
+            <article class="result">
+              <div class="result-top">
+                <h3><a href="{{ result.guid|safe_url }}">{{ result.post_title }}</a></h3>
+                <div class="score {{ result.result_type }}">
+                  <span>{{ result.result_type }}{% if result.sources %}: {{ result.sources }}{% endif %}</span>
+                  {% if result.result_type == 'semantic' %}{{ '%.6f'|format(result.combined_distance) }}
+                  {% elif result.result_type == 'keyword' %}{{ '%.6f'|format(result.combined_score) }}
+                  {% else %}{{ '%.6f'|format(result.fusion_score) }}{% endif %}
+                </div>
+              </div>
+              <p class="excerpt">{{ result.post_excerpt }}</p>
+            </article>
+          {% endfor %}
+        </section>
+      {% elif searched and not error %}
+        <section class="result empty">No matching articles were found.</section>
+      {% endif %}
+    </main>
+  </body>
+</html>

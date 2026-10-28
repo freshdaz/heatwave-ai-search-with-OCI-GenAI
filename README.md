@@ -1,4 +1,5 @@
 # HeatWave AI Search
+Related article: [Build an AI powered search engine with MySQL HeatWave and OCI GenAI](https://dasini.net/blog/2026/10/27/build-an-ai-powered-search-engine-with-mysql-heatwave-and-oci-genai/)
 
 A Python and Flask application for semantic, keyword, and hybrid search over
 WordPress posts. OCI Generative AI generates embeddings, summaries, and keywords;
